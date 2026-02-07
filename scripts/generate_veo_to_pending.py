@@ -2,29 +2,35 @@ import os
 import json
 import time
 import requests
+
 from google import genai
 from google.genai import types
+
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
+
 # =================================================
-# ENV (already present in your repo)
+# ENV (GitHub Secrets se aata hai)
 # =================================================
 # GOOGLE_API_KEY        -> Veo API key
 # GOOGLE_TOKEN_JSON     -> OAuth token.json (string)
 # PENDING_FOLDER_ID     -> Drive folder ID
 
+GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]
 TOKEN_JSON = os.environ["GOOGLE_TOKEN_JSON"]
 PENDING_FOLDER_ID = os.environ["PENDING_FOLDER_ID"]
 
-# =================================================
-# 1) INIT VEO CLIENT
-# =================================================
-client = genai.Client()
 
 # =================================================
-# 2) GENERATE VIDEO WITH VEO 3
+# 1️⃣ INIT VEO CLIENT  (<<< यही FIX है >>>)
+# =================================================
+client = genai.Client(api_key=GOOGLE_API_KEY)
+
+
+# =================================================
+# 2️⃣ GENERATE VIDEO WITH VEO 3
 # =================================================
 operation = client.models.generate_videos(
     model="veo-3.1-fast-generate-preview",
@@ -37,19 +43,22 @@ operation = client.models.generate_videos(
 
 print("🎬 Veo video generation started...")
 
+
 # =================================================
-# 3) WAIT FOR COMPLETION
+# 3️⃣ WAIT FOR COMPLETION
 # =================================================
 while not operation.done:
     time.sleep(10)
     operation = client.operations.get(operation.name)
     print("⏳ processing...")
 
+
 result = operation.result
 video_url = result.generated_videos[0].video.uri
 
+
 # =================================================
-# 4) DOWNLOAD VIDEO
+# 4️⃣ DOWNLOAD VIDEO
 # =================================================
 video_file = "veo_output.mp4"
 
@@ -61,8 +70,9 @@ with requests.get(video_url, stream=True) as r:
 
 print("⬇️ Video downloaded:", video_file)
 
+
 # =================================================
-# 5) UPLOAD TO DRIVE (OAuth token.json)
+# 5️⃣ UPLOAD TO GOOGLE DRIVE (OAuth token.json)
 # =================================================
 creds = Credentials.from_authorized_user_info(
     json.loads(TOKEN_JSON),
