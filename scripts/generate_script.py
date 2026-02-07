@@ -3,37 +3,51 @@ import json
 import requests
 from datetime import datetime
 
+# ===============================
+# ENV CHECK
+# ===============================
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
     raise RuntimeError("GEMINI_API_KEY not found in environment variables")
 
-# Gemini API endpoint (text generation)
+# ===============================
+# GEMINI API CONFIG
+# ===============================
 URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-1.5-flash:generateContent"
+    "gemini-1.5-pro:generateContent"
 )
 
 headers = {
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
 }
 
+# ===============================
+# PROMPT (STRICT JSON OUTPUT)
+# ===============================
 prompt = """
 You are an AI video director.
+
 Create a YouTube Shorts video plan (30–40 seconds).
 
-Return ONLY valid JSON in this exact format:
+Rules:
+- Return ONLY valid JSON
+- No explanations
+- No markdown
+- No extra text
+
+JSON format MUST be exactly:
 
 {
-  "title": "...",
+  "title": "string",
   "scenes": [
-    { "prompt": "...", "duration": 5 },
-    { "prompt": "...", "duration": 6 }
+    { "prompt": "string", "duration": number }
   ],
-  "voiceover": "..."
+  "voiceover": "string"
 }
 
-Topic: One surprising fact about artificial intelligence.
+Topic: One shocking fact about Artificial Intelligence.
 """
 
 payload = {
@@ -46,35 +60,57 @@ payload = {
     ]
 }
 
+# ===============================
+# API CALL
+# ===============================
 response = requests.post(
     f"{URL}?key={API_KEY}",
     headers=headers,
     json=payload,
-    timeout=30
+    timeout=60
 )
 
+# Raise error if API fails
 response.raise_for_status()
 
 data = response.json()
 
-# Extract text output
-text_output = data["candidates"][0]["content"]["parts"][0]["text"]
+# ===============================
+# EXTRACT & CLEAN RESPONSE
+# ===============================
+raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
 
-# Gemini kabhi kabhi ```json ``` ke andar deta hai – clean karo
-cleaned = text_output.strip()
-cleaned = cleaned.removeprefix("```json").removesuffix("```").strip()
+cleaned = raw_text.strip()
 
-video_plan = json.loads(cleaned)
+# Remove accidental markdown
+if cleaned.startswith("```"):
+    cleaned = cleaned.replace("```json", "").replace("```", "").strip()
 
-# Save output
-output = {
+# ===============================
+# PARSE JSON
+# ===============================
+try:
+    video_plan = json.loads(cleaned)
+except json.JSONDecodeError as e:
+    print("❌ Raw Gemini Output:")
+    print(cleaned)
+    raise RuntimeError("Gemini returned invalid JSON") from e
+
+# ===============================
+# SAVE OUTPUT
+# ===============================
+final_output = {
     "generated_at": datetime.utcnow().isoformat(),
     "video_plan": video_plan
 }
 
 with open("video_plan.json", "w", encoding="utf-8") as f:
-    json.dump(output, f, indent=2, ensure_ascii=False)
+    json.dump(final_output, f, indent=2, ensure_ascii=False)
 
+# ===============================
+# LOG SUCCESS
+# ===============================
 print("✅ Gemini API call successful")
 print("🎬 Video plan saved to video_plan.json")
-print("📌 Title:", video_plan["title"])
+print("📌 Title:", video_plan.get("title"))
+print("🎞️ Scenes:", len(video_plan.get("scenes", [])))
