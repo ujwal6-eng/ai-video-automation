@@ -12,11 +12,11 @@ if not API_KEY:
     raise RuntimeError("GEMINI_API_KEY not found in environment variables")
 
 # ===============================
-# GEMINI API CONFIG
+# CORRECT GEMINI API ENDPOINT
 # ===============================
 URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-1.5-pro:generateContent"
+    "https://generativelanguage.googleapis.com/v1/models/"
+    "gemini-1.0-pro:generateContent"
 )
 
 headers = {
@@ -24,7 +24,7 @@ headers = {
 }
 
 # ===============================
-# PROMPT (STRICT JSON OUTPUT)
+# STRICT PROMPT (JSON ONLY)
 # ===============================
 prompt = """
 You are an AI video director.
@@ -32,9 +32,9 @@ You are an AI video director.
 Create a YouTube Shorts video plan (30–40 seconds).
 
 Rules:
-- Return ONLY valid JSON
-- No explanations
+- Output ONLY valid JSON
 - No markdown
+- No explanation
 - No extra text
 
 JSON format MUST be exactly:
@@ -70,19 +70,18 @@ response = requests.post(
     timeout=60
 )
 
-# Raise error if API fails
 response.raise_for_status()
 
 data = response.json()
 
 # ===============================
-# EXTRACT & CLEAN RESPONSE
+# EXTRACT TEXT
 # ===============================
 raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
 
 cleaned = raw_text.strip()
 
-# Remove accidental markdown
+# Remove accidental markdown fences
 if cleaned.startswith("```"):
     cleaned = cleaned.replace("```json", "").replace("```", "").strip()
 
@@ -91,10 +90,10 @@ if cleaned.startswith("```"):
 # ===============================
 try:
     video_plan = json.loads(cleaned)
-except json.JSONDecodeError as e:
-    print("❌ Raw Gemini Output:")
+except json.JSONDecodeError:
+    print("❌ Gemini raw output:")
     print(cleaned)
-    raise RuntimeError("Gemini returned invalid JSON") from e
+    raise RuntimeError("Gemini returned invalid JSON")
 
 # ===============================
 # SAVE OUTPUT
@@ -108,7 +107,7 @@ with open("video_plan.json", "w", encoding="utf-8") as f:
     json.dump(final_output, f, indent=2, ensure_ascii=False)
 
 # ===============================
-# LOG SUCCESS
+# SUCCESS LOG
 # ===============================
 print("✅ Gemini API call successful")
 print("🎬 Video plan saved to video_plan.json")
