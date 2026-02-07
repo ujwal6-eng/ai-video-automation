@@ -1,16 +1,17 @@
-name: Generate Pipeline Test
+name: Generate AI Video Plan
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 6 * * *"   # daily 6 AM UTC (baad me change kar sakte ho)
+    # Daily at 6:00 AM UTC
+    - cron: "0 6 * * *"
 
 jobs:
-  test-run:
+  generate:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -23,6 +24,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run test script
+      - name: Run Gemini generate script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python scripts/generate_script.py
+
+      - name: Show generated files (debug)
+        run: |
+          echo "📂 Current directory:"
+          ls -la
+          echo "📄 video_plan.json content:"
+          cat video_plan.json || echo "video_plan.json not found"
