@@ -1,30 +1,25 @@
 import os
 import json
-import requests
 from datetime import datetime
+import google.generativeai as genai
 
 # ===============================
-# ENV CHECK
+# API KEY
 # ===============================
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
-    raise RuntimeError("GEMINI_API_KEY not found in environment variables")
+    raise RuntimeError("GEMINI_API_KEY not found")
+
+genai.configure(api_key=API_KEY)
 
 # ===============================
-# CORRECT GEMINI API ENDPOINT
+# MODEL (OFFICIAL & STABLE)
 # ===============================
-URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
-    "gemini-1.0-pro:generateContent"
-)
-
-headers = {
-    "Content-Type": "application/json"
-}
+model = genai.GenerativeModel("gemini-pro")
 
 # ===============================
-# STRICT PROMPT (JSON ONLY)
+# PROMPT (STRICT JSON)
 # ===============================
 prompt = """
 You are an AI video director.
@@ -50,66 +45,42 @@ JSON format MUST be exactly:
 Topic: One shocking fact about Artificial Intelligence.
 """
 
-payload = {
-    "contents": [
-        {
-            "parts": [
-                {"text": prompt}
-            ]
-        }
-    ]
-}
-
 # ===============================
-# API CALL
+# GENERATE
 # ===============================
-response = requests.post(
-    f"{URL}?key={API_KEY}",
-    headers=headers,
-    json=payload,
-    timeout=60
-)
+response = model.generate_content(prompt)
 
-response.raise_for_status()
+text = response.text.strip()
 
-data = response.json()
-
-# ===============================
-# EXTRACT TEXT
-# ===============================
-raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-
-cleaned = raw_text.strip()
-
-# Remove accidental markdown fences
-if cleaned.startswith("```"):
-    cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+# Remove accidental code fences
+if text.startswith("```"):
+    text = text.replace("```json", "").replace("```", "").strip()
 
 # ===============================
 # PARSE JSON
 # ===============================
 try:
-    video_plan = json.loads(cleaned)
+    video_plan = json.loads(text)
 except json.JSONDecodeError:
     print("❌ Gemini raw output:")
-    print(cleaned)
+    print(text)
     raise RuntimeError("Gemini returned invalid JSON")
 
 # ===============================
 # SAVE OUTPUT
 # ===============================
-final_output = {
+output = {
     "generated_at": datetime.utcnow().isoformat(),
     "video_plan": video_plan
 }
 
 with open("video_plan.json", "w", encoding="utf-8") as f:
-    json.dump(final_output, f, indent=2, ensure_ascii=False)
+    json.dump(output, f, indent=2, ensure_ascii=False)
 
 # ===============================
 # SUCCESS LOG
 # ===============================
-print("✅ Gemini API call successful")
+print("✅ Gemini SDK call successful")
 print("🎬 Video plan saved to video_plan.json")
 print("📌 Title:", video_plan.get("title"))
 print("🎞️ Scenes:", len(video_plan.get("scenes", [])))
